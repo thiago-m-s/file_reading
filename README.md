@@ -6,7 +6,9 @@ This project aims to create a simple data visualizer to make it possible users t
 ## Windows executable
 
 Below is the link for the last stable windows os executable:
+[https://drive.google.com/file/d/1TgAJkkaMDhD09v3_0pXZxSjAmRVpktW-/view?usp=sharing](https://drive.google.com/file/d/1TgAJkkaMDhD09v3_0pXZxSjAmRVpktW-/view?usp=sharing)
 
+obs: .exe is hosted in google drive because of github file size policy.
 
 ## Suported files
 
