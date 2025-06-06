@@ -17,11 +17,12 @@ import matplotlib.pyplot as plt
 
 #Initialization disclaimers
 
+
 print('*******************************************************************************************')
 print('*                                  sSNOM data visualizer                                  *')
 print('*              This aplication plots an .txt spectra file from Attocube sSNOM             *')
 print('*                           thiago.santos@lnls.br Imbuia Group                            *')
-print('*******************************************************************************************')
+print('*******************************************************************************************\n\n')
 
 
 #selecting file path
@@ -33,12 +34,34 @@ def file_dialog():
     return file_path
 
 file_path = file_dialog()
-print(file_path)
+print("File path: ", file_path, "\n")
 
+
+#Detection of Header
+'''
+It scans for .txt file looking for lines starting with #
+It adds to a counter for each line with # considering data starts in the following without #
+data_start is the line that doesnt contain #, where data begins
+
+It is necessary because normalized and not normalized files contain diferent head lengths
+'''
+
+i=0
+
+with open(file_path,"r") as pre_ds:
+
+    for i, line in enumerate(pre_ds):
+        if line.strip().lower().startswith("#"):
+            data_start = i+1
+
+        
 #Reading file with pandas
 # df = dataframe
 #The delimiter is space, and 30 first lines are skipped
-df = pd.read_csv(file_path, delim_whitespace = True, on_bad_lines='skip', skiprows = 30)
+
+print("\nData starts in line number", data_start)
+
+df = pd.read_csv(file_path, delim_whitespace = True, on_bad_lines='skip', skiprows = data_start)
 
 print("Dataframe loaded\n")
 
