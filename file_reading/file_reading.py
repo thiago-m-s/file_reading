@@ -9,6 +9,7 @@
 #Pandas used to import file and data handling
 #Matplotlib used to plot data
 #RE used to extract numbers from metadata header
+#Scipy used to perform Furrier Analysis
 
 import tkinter as tk
 from tkinter import filedialog
@@ -45,7 +46,7 @@ def load_spectra(file_path):
     O1A = df['O1A']
     O2A = df['O2A']
     O3A = df['O3A']
-    O3A = df['O4A']
+    O4A = df['O4A']
 
     #Phase with unwrap
     O0P = np.unwrap(df['O0P'])
@@ -64,7 +65,7 @@ def load_spectra(file_path):
     amplitude.plot(wnumber,O1A, label = 'O1A')
     amplitude.plot(wnumber,O2A, label = 'O2A')
     amplitude.plot(wnumber,O3A, label = 'O3A')
-    amplitude.plot(wnumber,O3A, label = 'O4A')
+    amplitude.plot(wnumber,O4A, label = 'O4A')
     amplitude.legend()
     amplitude.set_xlim(0,3000)
     amplitude.set_title('Amplitude')
@@ -123,18 +124,19 @@ def load_interferograms(file_path, data_start, averaging, pixelarea_z, interfero
      k=0
      i=0
 
-     print(depth)
+     print("Dataframe loaded.")
 
      #Preparing plot
 
-     ax = plt.gca() #Get the current axes: it shares plot axes to append curves
+     #ax = plt.gca() #Get the current axes: it shares plot axes to append curves. It is like subplots but for curves and not entire frames.
+     fig, (ax1,ax2) = plt.subplots(2, 1)
 
      #Geting interferograms
 
      '''
      Pending: Create x axis vector with micrometer values done
-     Append interferogram to interferograms 2d array
-     Calculate average interferogram
+     Append interferogram to interferograms 2d array done
+     Calculate average interferogram done
      Calculate FFT for each interferogram and apend to FFTs
      Calculate average FFT
      '''
@@ -148,23 +150,74 @@ def load_interferograms(file_path, data_start, averaging, pixelarea_z, interfero
 
 
      i=0
+     k=0
+     interferograms_stack = np.empty((averaging+1,pixelarea_z+1)) # creating empty 2d array for interferograms
+
+     #Geting interferogram elements
      while k<averaging: #K is one interferogram
          interferogram = np.array([]) #reset interferogram vector
          while i<pixelarea_z:
-            element_value = O2A[i+(k*pixelarea_z)] #takes the interest element value
-            i = i+1 #increment to element number counter
+            element_value = O2A[i+k*pixelarea_z] #takes the interest element value
             interferogram = np.hstack([interferogram, element_value]) #append element value to new interferogram
-         ax.plot(space_domain,interferogram) #append curve to plot
+            interferograms_stack[k,i] = element_value
+            i = i+1
+         #ax.plot(space_domain,interferogram) #append curve to plot
+         ax1.plot(space_domain,interferogram)
          k = k+1 #incremet of interferoram number
          i=0 #reset for element counter
+     
+     print("Interferograms loaded.")
+     
+     #Calculating average interferogram
+     interferogram_average = np.empty((pixelarea_z)) #create an empty list for average values per position
+
+     i=0 #Counter for element value in interferogram
+     k=0 #Counter for interferogram number
+     while i<pixelarea_z: #Loop to scal all elements in each interferogram
+         while k<=averaging: #Loop to scan all interferograms i values
+             element_value = element_value+interferograms_stack[k,i] #Appending of elements values to summation variable
+             interferogram_average[i] = element_value #adds it to vector
+             k = k+1
+         interferogram_average[i] = element_value/averaging #Do the average by the number of interferograms
+         element_value = 0 #Reset element value summation
+         i=i+1 #increments element counter
+         k = 0 #Reset interferogram counter to a new element averaging
+     
+     print("Average interferogram calculated.")
+     
+     #Ploting average interferogram
+     average_plot, = ax1.plot(space_domain,interferogram_average, label = 'Average') #Appends average curve to graph
+     average_plot.set_color('r') #chage the color to read
+     average_plot.set_linewidth(2) #change thickness
+
+     '''
+     #FFT
+     fft_result = np.fft.fft(interferogram_average)
+     fft_amplitude = np.abs(fft_result)
+     fft_phase = np.angle(fft_result)
+     interferogram_length = len(interferogram_average)
+     samplig_rate = 1 / (space_domain[1] - space_domain[0])
+     wnumber_domain = np.fft.fftfreq(interferogram_length, d =1/samplig_rate)
+     '''
+
 
      #Ploting details
-     plt.title('Interferograms')
-     plt.xlabel('Space [um]')
-     plt.ylabel('A.U.')
-     plt.grid(True)
+     ax1.legend()
+     ax1.set_title('Interferograms')
+     ax1.set_xlabel('Space [um]')
+     ax1.set_ylabel('A.U.')
+     ax1.grid(True)
+     
+
+     ax2.imshow(interferograms_stack, extent = [space_domain[0],space_domain[pixelarea_z-1],0,averaging], cmap = 'inferno')
      plt.show()
-               
+     
+     '''
+     plt.plot(wnumber_domain[:interferogram_length//2], fft_amplitude[:interferogram_length//2])
+     plt.show()
+     plt.plot(fft_phase)
+     plt.show()
+     '''
 
 #Main loop: to be possible to open another file when the first is closed
 
@@ -212,7 +265,7 @@ while 1==1:
                 header.append(line.strip())
 
 
-    print(header)
+    #print(header)
 
     #Reading file with pandas
     # df = dataframe
