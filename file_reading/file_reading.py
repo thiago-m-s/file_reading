@@ -9,7 +9,7 @@
 #Pandas used to import file and data handling
 #Matplotlib used to plot data
 #RE used to extract numbers from metadata header
-#Scipy used to perform Furrier Analysis
+#Scipy used to calculate FFT
 
 import tkinter as tk
 from tkinter import filedialog
@@ -17,6 +17,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import re
+from scipy.fft import fft, fftfreq
+#from scipy.fft import nufft, nufft_freq
+from scipy.interpolate import interp1d
 
 #Initialization disclaimers
 
@@ -190,16 +193,62 @@ def load_interferograms(file_path, data_start, averaging, pixelarea_z, interfero
      average_plot.set_color('r') #chage the color to read
      average_plot.set_linewidth(2) #change thickness
 
-     '''
-     #FFT
+     
+     #FFT with numpy
+     ''' 
      fft_result = np.fft.fft(interferogram_average)
      fft_amplitude = np.abs(fft_result)
      fft_phase = np.angle(fft_result)
+     fft_phase = np.unwrap(fft_phase)
      interferogram_length = len(interferogram_average)
-     samplig_rate = 1 / (space_domain[1] - space_domain[0])
-     wnumber_domain = np.fft.fftfreq(interferogram_length, d =1/samplig_rate)
+     sampling_rate = 1 / (space_domain[1] - space_domain[0]) # in micrometers
+     sampling_rate = (sampling_rate * 10000)/2 # in centimeters
+     wnumber_domain = np.fft.fftfreq(interferogram_length, d = 1/sampling_rate)
      '''
+     
+     #FFT with Scipy
+     
+     
+     '''
+     Interpolation:
 
+     x_nonuniform = np.array([]) Non uniform x-coordinates
+     y_nonuniform = np.array([]) Non uniform y-coordinates
+
+     Interpolation function: Creates a function f relating x and y f(x) = y
+     f = interp1d(x_nonuniform, y_nonuniform, kind = 'linear')    Tip: Check other kinds as cubic, spline etc
+
+     Creating the x domain with minimum and maximum as ranges and the same length of non uniform x keeping numbuer of points
+     x_equally = np.linspace(x_nonuniform.min(), x_nonuniform.max(), len(x_nonuniform))
+
+     Creating the np.array for y equally spaced
+     y_equally = f(x_eq)
+     '''
+    
+     #Interpolating average interferogram
+     interferogram_average_AC = interferogram_average - np.mean(interferogram_average) # Removing DC component from interferogram
+     interp1d_f = interp1d(space_domain, interferogram_average) #Creates interpolated function relating space domain and interferogram amplitude
+     space_domain_ip1d = np.linspace(space_domain.min(), space_domain.max(), len(space_domain)) #Creates equally spaced space_domain with same number of points from original, ip1d = interpolated
+     interferogram_average_ip1d = interp1d_f(space_domain_ip1d) #Interpolates interferogram amplitude values for each point of equally spaced space domain, ip1d = interpolated
+
+     #Windowing
+     window = np.hanning(len(interferogram_average_ip1d)) #Creating an window with same length as interferogram
+     interferogram_average_ip1d = interferogram_average_ip1d*window #Aplying window to interferogram
+
+     #Performing DFT
+     interferogram_length = len(interferogram_average_AC)  #Taking interferogram length
+     sampling_rate = 1 / (space_domain[1] - space_domain[0]) #  sampling rate in micrometers
+     sampling_rate = (sampling_rate * 10000)/2 #Converting  sampling rate to centimeters
+     #wnumber_domain = fftfreq(interferogram_length, d = 1/sampling_rate) # taking reciprocal domain in cm-1
+     #fft_result = fft(interferogram_average_AC) #Taking fft from interferogram
+
+     wnumber_domain = np.fft.rfftfreq(interferogram_length, d = 1/sampling_rate) # taking reciprocal domain in cm-1
+     fft_result = np.fft.fft(interferogram_average_AC) #Taking fft from interferogram
+     
+     fft_amplitude = np.abs(fft_result) #Taking absolute to amplitude
+     fft_phase = np.angle(fft_result) #Taking phase
+     fft_phase = np.unwrap(fft_phase) #Unwraping phase
+    
 
      #Ploting details
      ax1.legend()
@@ -209,15 +258,17 @@ def load_interferograms(file_path, data_start, averaging, pixelarea_z, interfero
      ax1.grid(True)
      
 
-     ax2.imshow(interferograms_stack, extent = [space_domain[0],space_domain[pixelarea_z-1],0,averaging], cmap = 'inferno')
+     ax2.imshow(interferograms_stack, extent = [space_domain[2],space_domain[pixelarea_z-2],0,averaging], cmap = 'inferno') #Colormap of interferograms stack
      plt.show()
      
-     '''
+     #Plotting FFT (Temporary)
      plt.plot(wnumber_domain[:interferogram_length//2], fft_amplitude[:interferogram_length//2])
+     #plt.plot(fft_amplitude)
+     #plt.plot(wnumber_domain[:interferogram_length], fft_amplitude[:interferogram_length])
      plt.show()
-     plt.plot(fft_phase)
-     plt.show()
-     '''
+     #plt.plot(fft_phase)
+     #plt.show()
+     
 
 #Main loop: to be possible to open another file when the first is closed
 
