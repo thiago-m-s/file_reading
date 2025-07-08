@@ -62,7 +62,7 @@ def load_spectra(file_path):
 
 
     #Ploting data:
-    fig,( amplitude, phase) = plt.subplots(2,1)
+    fig,(amplitude, phase) = plt.subplots(2,1)
 
     amplitude.plot(wnumber,O0A, label = 'O0A')
     amplitude.plot(wnumber,O1A, label = 'O1A')
@@ -132,7 +132,8 @@ def load_interferograms(file_path, data_start, averaging, pixelarea_z, interfero
      #Preparing plot
 
      #ax = plt.gca() #Get the current axes: it shares plot axes to append curves. It is like subplots but for curves and not entire frames.
-     fig, (ax1,ax2) = plt.subplots(2, 1)
+     fig, (ax1,ax2,ax3) = plt.subplots(3, 1)
+     fig.canvas.manager.set_window_title("Inteferograms File")
 
      #Geting interferograms
 
@@ -140,6 +141,7 @@ def load_interferograms(file_path, data_start, averaging, pixelarea_z, interfero
      Pending: Create x axis vector with micrometer values done
      Append interferogram to interferograms 2d array done
      Calculate average interferogram done
+     Calculate real part from amplitude and phase interferograms 
      Calculate FFT for each interferogram and apend to FFTs
      Calculate average FFT
      '''
@@ -160,7 +162,9 @@ def load_interferograms(file_path, data_start, averaging, pixelarea_z, interfero
      while k<averaging: #K is one interferogram
          interferogram = np.array([]) #reset interferogram vector
          while i<pixelarea_z:
-            element_value = O2A[i+k*pixelarea_z] #takes the interest element value
+            element_value_amplitude = O2A[i+k*pixelarea_z] #takes the interest element value from amplitude interferogram
+            element_value_phase = O2P[i+k*pixelarea_z] #takes the interest element value from phase interferoram
+            element_value = element_value_amplitude*np.cos(element_value_phase) #Calculates the real part from element value
             interferogram = np.hstack([interferogram, element_value]) #append element value to new interferogram
             interferograms_stack[k,i] = element_value
             i = i+1
@@ -169,6 +173,9 @@ def load_interferograms(file_path, data_start, averaging, pixelarea_z, interfero
          k = k+1 #incremet of interferoram number
          i=0 #reset for element counter
      
+
+    # Converting Amplitude and Phase interferograms to real interferograms
+
      print("Interferograms loaded.")
      
      #Calculating average interferogram
@@ -195,55 +202,31 @@ def load_interferograms(file_path, data_start, averaging, pixelarea_z, interfero
 
      
      #FFT with numpy
-     ''' 
-     fft_result = np.fft.fft(interferogram_average)
-     fft_amplitude = np.abs(fft_result)
-     fft_phase = np.angle(fft_result)
-     fft_phase = np.unwrap(fft_phase)
-     interferogram_length = len(interferogram_average)
-     sampling_rate = 1 / (space_domain[1] - space_domain[0]) # in micrometers
-     sampling_rate = (sampling_rate * 10000)/2 # in centimeters
-     wnumber_domain = np.fft.fftfreq(interferogram_length, d = 1/sampling_rate)
-     '''
      
-     #FFT with Scipy
-     
-     
-     '''
-     Interpolation:
-
-     x_nonuniform = np.array([]) Non uniform x-coordinates
-     y_nonuniform = np.array([]) Non uniform y-coordinates
-
-     Interpolation function: Creates a function f relating x and y f(x) = y
-     f = interp1d(x_nonuniform, y_nonuniform, kind = 'linear')    Tip: Check other kinds as cubic, spline etc
-
-     Creating the x domain with minimum and maximum as ranges and the same length of non uniform x keeping numbuer of points
-     x_equally = np.linspace(x_nonuniform.min(), x_nonuniform.max(), len(x_nonuniform))
-
-     Creating the np.array for y equally spaced
-     y_equally = f(x_eq)
-     '''
-    
      #Interpolating average interferogram
      interferogram_average_AC = interferogram_average - np.mean(interferogram_average) # Removing DC component from interferogram
-     interp1d_f = interp1d(space_domain, interferogram_average) #Creates interpolated function relating space domain and interferogram amplitude
+     interp1d_f = interp1d(space_domain, interferogram_average_AC) #Creates interpolated function relating space domain and interferogram amplitude
      space_domain_ip1d = np.linspace(space_domain.min(), space_domain.max(), len(space_domain)) #Creates equally spaced space_domain with same number of points from original, ip1d = interpolated
      interferogram_average_ip1d = interp1d_f(space_domain_ip1d) #Interpolates interferogram amplitude values for each point of equally spaced space domain, ip1d = interpolated
 
      #Windowing
-     window = np.hanning(len(interferogram_average_ip1d)) #Creating an window with same length as interferogram
+     #window = np.bartlett(len(interferogram_average_ip1d)) #Creating a bartlett window with same length as interferogram
+     #window = np.hamming(len(interferogram_average_ip1d)) #Creating a hamming window with same length as interferogram
+     window = np.kaiser(len(interferogram_average_ip1d), 14) #Creating a kaiser window with same length as interferogram
      interferogram_average_ip1d = interferogram_average_ip1d*window #Aplying window to interferogram
 
+     
      #Performing DFT
      interferogram_length = len(interferogram_average_AC)  #Taking interferogram length
      sampling_rate = 1 / (space_domain[1] - space_domain[0]) #  sampling rate in micrometers
      sampling_rate = (sampling_rate * 10000)/2 #Converting  sampling rate to centimeters
-     #wnumber_domain = fftfreq(interferogram_length, d = 1/sampling_rate) # taking reciprocal domain in cm-1
-     #fft_result = fft(interferogram_average_AC) #Taking fft from interferogram
+       
+     #Zero filling factor: times of interferogram length filled with zeros
+     zf_factor = 4;
 
-     wnumber_domain = np.fft.rfftfreq(interferogram_length, d = 1/sampling_rate) # taking reciprocal domain in cm-1
-     fft_result = np.fft.fft(interferogram_average_AC) #Taking fft from interferogram
+     wnumber_domain = np.fft.fftfreq(zf_factor*interferogram_length, d = 1/(sampling_rate)) # taking reciprocal domain in cm-1
+     #fft_result = np.fft.fft(interferogram_average_AC) #Taking fft from interferogram
+     fft_result = np.fft.fft(interferogram_average_AC,zf_factor*interferogram_length) #Taking fft from interferogram
      
      fft_amplitude = np.abs(fft_result) #Taking absolute to amplitude
      fft_phase = np.angle(fft_result) #Taking phase
@@ -258,17 +241,38 @@ def load_interferograms(file_path, data_start, averaging, pixelarea_z, interfero
      ax1.grid(True)
      
 
-     ax2.imshow(interferograms_stack, extent = [space_domain[2],space_domain[pixelarea_z-2],0,averaging], cmap = 'inferno') #Colormap of interferograms stack
-     plt.show()
+     #ax2.imshow(interferograms_stack, extent = [space_domain[2],space_domain[pixelarea_z-2],0,averaging], cmap = 'inferno') #Colormap of interferograms stack
      
-     #Plotting FFT (Temporary)
-     plt.plot(wnumber_domain[:interferogram_length//2], fft_amplitude[:interferogram_length//2])
-     #plt.plot(fft_amplitude)
-     #plt.plot(wnumber_domain[:interferogram_length], fft_amplitude[:interferogram_length])
+     
+     #Plotting FFT
+     ax2.plot(wnumber_domain[:zf_factor*interferogram_length//2], fft_amplitude[:zf_factor*interferogram_length//2]) 
+     ax2.set_title('Amplitude FFT')
+     ax2.set_xlabel('cm-1')
+     ax2.set_ylabel('A.U.')
+     ax2.grid(True)
+     ax2.set_xlim(0,5000)
+     ax2.set_xticks(range(0,5000,200))
+
+     ax3.plot(wnumber_domain[:zf_factor*interferogram_length//2], fft_phase[:zf_factor*interferogram_length//2])
+     ax3.set_title('Phase FFT')
+     ax3.set_xlabel('cm-1')
+     ax3.set_ylabel('A.U.')
+     ax3.grid(True)
+     ax3.set_xlim(0,5000)
+     ax3.set_xticks(range(0,5000,200))
+
+
+     
+
      plt.show()
      #plt.plot(fft_phase)
      #plt.show()
      
+'''
+This function will load a linescan from linescan file
+'''
+def load_linescan(file_path, data_start, averaging, pixelarea_z, interferometer_distance):
+    print("Load linescan function here!")
 
 #Main loop: to be possible to open another file when the first is closed
 
@@ -353,6 +357,11 @@ while 1==1:
             interferometer_center = float(re.findall(r"[-+]?\d+\.\d+",header[i])[0]) # take interferometer center position from vector of taken int numbers of i th line converting from string to float
             interferometer_distance = float(re.findall(r"[-+]?\d+\.\d+",header[i])[1]) # take interferometer distance from vector of taken int numbers of i th line converting from string to float
 
+        if header[i].lower().startswith('# scan area'): #check if scanned starts with scanned starts with scan area
+            scan_area_x = float(re.findall(r"[-+]?\d+\.\d+",header[i])[0]) #take X from first element of vector of taken int numbers
+            scan_area_y = float(re.findall(r"[-+]?\d+\.\d+",header[i])[1]) #take Y from second element of vector of taken int numbers
+            scan_area_z = float(re.findall(r"[-+]?\d+\.\d+",header[i])[2]) #take Z from third element of vector of taken int numbers
+
         i = i+1
     print("Detected averaging : ",averaging)
     print("Pixel Area X: ", pixelarea_x)
@@ -360,11 +369,17 @@ while 1==1:
     print("Pixel Area Z: ", pixelarea_z)
     print("Interferometer center : ", interferometer_center," um")
     print("Interferometer distance : ", interferometer_distance," um")
+    print("Scan Area X: ",scan_area_x, "um")
+    print("Scan Area Y: ",scan_area_y, "um")
+    print("Scan Area Z: ",scan_area_z, "um")
 
     #Checking file tyoe:
     if "Depth" in header[data_start]:
         print("Interferogram file detected")
         load_interferograms(file_path, data_start, averaging, pixelarea_z, interferometer_distance)
+    elif (((scan_area_x>0) and (scan_area_y == 0) and (scan_area_z == 0)) or ((scan_area_x==0) and (scan_area_y > 0) and (scan_area_z == 0)) or ((scan_area_x == 0) and (scan_area_y == 0) and (scan_area_z > 0))):
+        print("Linescan file detected")
+        load_linescan(file_path, data_start, averaging, pixelarea_z, interferometer_distance)
     else:
         print("Spectra file detected")
         load_spectra(file_path)
